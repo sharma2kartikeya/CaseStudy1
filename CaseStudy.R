@@ -1,36 +1,79 @@
 library(forecast)
 library(xts)     
 
+train <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/train.csv")
+stores <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/stores.csv")
+features <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/features.csv")
 
-StoreTrain <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/train.csv")
-View(unique(StoreTrain$Weekly_Sales))
-View(StoreTrain)
-as.numeric(StoreTrain$IsHoliday == "TRUE")
-StoreTrain$IsHoliday<-as.integer(as.logical(StoreTrain$IsHoliday))
-Features<- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/features.csv")
-View(Features)
+train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
+features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
 
-FeaturesTrainNonHoliday<-subset(Features, IsHoliday==FALSE)
+View(train)
+View(features)
 
-FeaturesTrainHoliday.xts<- xts( x= FeaturesTrainHoliday, order.by = as.Date(FeaturesTrainHoliday$Date))
 
-FeaturesTrainHoliday.xts[,5:9][is.na(FeaturesTrainHoliday.xts[,5:9])==TRUE]<- 0
-View(FeaturesTrainHoliday.xts)
+myfulldata <- merge(features, stores)
+myfulldata[,5:9][is.na(myfulldata[,5:9])==TRUE]<- 0
 
-FeaturesTrainNonHoliday.xts<- xts( x= FeaturesTrainNonHoliday, order.by = as.Date(FeaturesTrainNonHoliday$Date))
-View(FeaturesTrainNonHoliday.xts)
+View(myfulldata)
 
+finaldata <- merge(myfulldata , train)
+View(finaldata)
+
+
+
+#plot(finaldata$Date,finaldata$Weekly_Sales) # use to show the equal distribution of sales vs date/time
+
+View(cor(finaldata[c(-2,-13)]))
+
+finaldataNonHoliday<-subset(finaldata, IsHoliday==FALSE)
+finaldataHoliday<-subset(finaldata, IsHoliday==TRUE)
+View(finaldataHoliday)
+
+# startEntry= c(2010,5)
+# finaldataHoliday <- ts(finaldata$Weekly_Sales, frequency=52, 
+#                start=startEntry)
 # 
-# FeaturesTrainNonHoliday.xts$MarkDown2<-na.fill(FeaturesTrainNonHoliday.xts$MarkDown2,fill=0)
-# FeaturesTrainNonHoliday.xts$MarkDown3<-na.fill(FeaturesTrainNonHoliday.xts$MarkDown3,fill=0)
-# FeaturesTrainNonHoliday.xts$MarkDown4<-na.fill(FeaturesTrainNonHoliday.xts$MarkDown4,fill=0)
-# FeaturesTrainNonHoliday.xts$MarkDown5<-na.fill(FeaturesTrainNonHoliday.xts$MarkDown5,fill=0)
+# plot(finaldataHoliday)
 
-?na.fill()
-na.fill(FeaturesTrainNonHoliday.xts,fill=0)  
-FeaturesTrainNonHoliday.xts$IsHoliday<-as.integer(as.logical(FeaturesTrainNonHoliday.xts$IsHoliday))
-View(FeaturesTrainNonHoliday.xts)
+# finaldataHoliday[finaldataHoliday==0] <- NA
+# finaldataHoliday<-na.locf(finaldata)
+# 
+# finaldataHoliday.xts<- xts(finaldataHoliday, order.by = as.Date(finaldataHoliday$Date))
+# View(finaldataHoliday.xts)
+# 
+# finaldataHoliday<-na.approx(finaldataHoliday)
+# View(finaldata)
+# na.locf()
+# 
+# 
+# ?tslm()
+# model <- tslm( ~ trend + season)
+# fc  <- forecast(model, h=horizon)
 
+View(unique(is.na(finaldata)))
 
+finaldataEdited<-finaldata[-c(6:10)]
+View(finaldataEdited)
 
+finaldataEdited.xts<-xts(finaldataEdited,frequency=365, order.by=as.Date(finaldataEdited$Date))
+# plot(apply.weekly(finaldataEdited.xts$Weekly_Sales,FUN=mean))
+# plot(HoltWinters(apply.weekly(finaldataEdited.xts$Weekly_Sales,FUN=mean), beta = FALSE, gamma = FALSE))
+# 
+# ls('package:xts')
+# ?FUN
+# 
+# ?apply.weekly()
+# aggregate()
+# aggregate(Vo(xts.ts),as.Date(index(xts.ts)),sum)
+# 
+# ?xts()
+# ts.plot(finaldataEdited.ts)
+# 
+# finaldataEdited.ts.decompose<-decompose(finaldataEdited.ts, type='multiplicative')
+# plot(finaldataEdited.ts.decompose)
+# 
+# ts.plot(finaldataEdited.ts.decompose)
+
+aggregate.ts(finaldataEdited.xts,nfrequency = 52,fun=mean,)
 
