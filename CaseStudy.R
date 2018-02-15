@@ -1,5 +1,27 @@
+install.packages("ggplot2")
+install.packages("ltm")
+install.packages("RPostgreSQL")
+install.packages("RPostgres")
+install.packages("sqldf")
 library(forecast)
-library(xts)     
+library(xts) 
+library(ggplot2)
+library(ltm)
+library(dplyr)
+library(RPostgreSQL)
+library(sqldf)
+
+
+# library(DBI)
+# library(RPostgres)
+# 
+# con <- dbConnect(RPostgres::Postgres(),
+#                  host = url$host,
+#                  port = url$port,
+#                  dbname = url$dbname,
+#                  user = url$user,
+#                  password = url$password
+# )
 
 train <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/train.csv")
 stores <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/stores.csv")
@@ -8,72 +30,114 @@ features <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 
 train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
 features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
 
-View(train)
-View(features)
-
-
-myfulldata <- merge(features, stores)
-myfulldata[,5:9][is.na(myfulldata[,5:9])==TRUE]<- 0
-
-View(myfulldata)
-
-finaldata <- merge(myfulldata , train)
-View(finaldata)
-
-
-
 #plot(finaldata$Date,finaldata$Weekly_Sales) # use to show the equal distribution of sales vs date/time
+
 
 View(cor(finaldata[c(-2,-13)]))
 
-finaldataNonHoliday<-subset(finaldata, IsHoliday==FALSE)
-finaldataHoliday<-subset(finaldata, IsHoliday==TRUE)
-View(finaldataHoliday)
 
-# startEntry= c(2010,5)
-# finaldataHoliday <- ts(finaldata$Weekly_Sales, frequency=52, 
-#                start=startEntry)
-# 
-# plot(finaldataHoliday)
+startEntry= c(2010,5)
+finaldata_ts <- ts(finaldata$Weekly_Sales, frequency=52, 
+                   start=startEntry)
 
-# finaldataHoliday[finaldataHoliday==0] <- NA
-# finaldataHoliday<-na.locf(finaldata)
-# 
-# finaldataHoliday.xts<- xts(finaldataHoliday, order.by = as.Date(finaldataHoliday$Date))
-# View(finaldataHoliday.xts)
-# 
-# finaldataHoliday<-na.approx(finaldataHoliday)
-# View(finaldata)
-# na.locf()
-# 
-# 
-# ?tslm()
-# model <- tslm( ~ trend + season)
-# fc  <- forecast(model, h=horizon)
+plot(finaldata_ts)
 
-View(unique(is.na(finaldata)))
+tsDecomp<-decompose(finaldata_ts, type="multiplicative")
+plot(tsDecomp)
 
-finaldataEdited<-finaldata[-c(6:10)]
-View(finaldataEdited)
+aggStore<-sqldf("select Store,Date,avg(Weekly_Sales) as Avg_Weekly_Sales,sum(Weekly_Sales) as Net_Weekly_Sales from train group by Store,Date ")
+aggStore$Date<-as.Date(aggStore$Date)
+View(aggStore)
 
-finaldataEdited.xts<-xts(finaldataEdited,frequency=365, order.by=as.Date(finaldataEdited$Date))
-# plot(apply.weekly(finaldataEdited.xts$Weekly_Sales,FUN=mean))
-# plot(HoltWinters(apply.weekly(finaldataEdited.xts$Weekly_Sales,FUN=mean), beta = FALSE, gamma = FALSE))
-# 
-# ls('package:xts')
-# ?FUN
-# 
-# ?apply.weekly()
-# aggregate()
-# aggregate(Vo(xts.ts),as.Date(index(xts.ts)),sum)
-# 
-# ?xts()
-# ts.plot(finaldataEdited.ts)
-# 
-# finaldataEdited.ts.decompose<-decompose(finaldataEdited.ts, type='multiplicative')
-# plot(finaldataEdited.ts.decompose)
-# 
-# ts.plot(finaldataEdited.ts.decompose)
+aggDate<-sqldf("select Date,avg(Weekly_Sales) as Avg_Weekly_Sales,sum(Weekly_Sales) as Net_Weekly_Sales  from train group by Date ")
+aggDate$Date<-as.Date(aggDate$Date)
+View(aggDate)
 
-aggregate.ts(finaldataEdited.xts,nfrequency = 52,fun=mean,)
+StoreDetails<-split(aggStore,aggStore$Store)
 
+#list2env(StoreDetails, envir= .GlobalEnv) separates the list into 45 different tables, not needed right now may be!
+
+
+###########Extract time series and plot#########
+  dataFreq=  52 
+  startEntry= c(2010,5) 
+  trainSetStart= c(2010,5)
+  trainSetEnd=  c(2012,7) 
+  testSetStart= c(2012,8)
+  testSetEnd= c(2012,50)
+  
+  for (i in 1:45)
+    
+  {
+        temp<-StoreDetails[[i]]
+  
+  
+        
+        
+        demandTS<-ts(temp$Avg_Weekly_Sales,freq=dataFreq, start =  startEntry )
+        plot(demandTS,main = "Average Sales faced by Walmart Store",xlab="Week",ylab="Sales")  #plot time series
+        
+        demandTrain <- window(demandTS,start=trainSetStart,end=trainSetEnd) #extract training set
+        demandTest <- window(demandTS,start=testSetStart,end=testSetEnd) #extract test set
+        
+        # ###########Forecast#########
+        numForcPeriods=36 
+        #number of periods to forecast in the future (Note: If you are computing errors with respect to testing data then this value 
+        #                     #should be equal to the duration of the testing data)
+        
+        HWForcModel <- HoltWinters(demandTrain,seasonal=c("multiplicative")) #Train Holt-Winters forecasting model. Can be additive or multiplicative
+        HWForecast <- forecast(HWForcModel, h=numForcPeriods, model = HoltWinters) #Foreacst using Holt-Winters model trained in previous step
+        
+        plot(HWForecast, main="Plot of training demand,
+               testing demand, and forecast with 80% and 95%
+              prediction intervals",xlab="Week",
+              ylab="Sales") #plot the training demand, and forecast with prediction intervals
+              lines(demandTest,col=2) #add the testing demand line to plot
+              legend("topleft", lty=1, col=c(1,4,2),
+             legend=c("Training Sales","Forecast","Testing Sales")) #create plot legend
+
+              ###########Analyze forecasting error#########
+              error = HWForecast$mean - demandTest #difference between forecast and actual demand
+              AD=abs(error) #absolute value of error
+             
+             #Create empty vectors to store errors
+              MSE <- matrix(, nrow = numForcPeriods, ncol = 1)
+              MAD <- matrix(, nrow = numForcPeriods, ncol = 1)
+              MAPE <- matrix(, nrow = numForcPeriods, ncol = 1)
+              bias <- matrix(, nrow = numForcPeriods, ncol = 1)
+              TS <- matrix(, nrow = numForcPeriods, ncol = 1)
+              #Label columns of matrices using name of error
+              colnames(MSE) <- "MSE"
+              colnames(MAD) <- "MAD"
+              colnames(MAPE) <- "MAPE"
+              colnames(bias) <- "bias"
+              colnames(TS) <- "TS"
+             
+             # #compute errors
+              for(t in 1:numForcPeriods){
+                MSE[t] <- mean(error[1:t]*error[1:t])
+                MAD[t] <- mean(AD[1:t])
+                MAPE[t] <- mean(100*abs(error[1:t]/demandTest[1:t]))
+                bias[t] <- sum(error[1:t])
+                TS[t]= bias[t]/MAD[t]
+              }
+             
+              #combined vectors into a dataframe, also appending year and quarter information in the first two columns
+              error_Meas <- data.frame(floor(time(error)),cycle(error),demandTest,HWForecast$mean,error,AD,MSE,MAD,MAPE,bias,TS)
+              colnames(error_Meas)[1] <- "Year"
+              colnames(error_Meas)[2] <- "Week"
+              colnames(error_Meas)[3] <- "Actual Sales"
+              colnames(error_Meas)[4] <- "Forecast"
+        
+        
+              View(error_Meas)
+     
+  
+  readinteger <- function()
+  { 
+    n <- readline(prompt=cat("Data displayed for Store",i))
+    return(as.integer(n))
+  }
+  
+  print(readinteger())
+}
