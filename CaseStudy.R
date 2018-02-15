@@ -3,6 +3,7 @@ install.packages("ltm")
 install.packages("RPostgreSQL")
 install.packages("RPostgres")
 install.packages("sqldf")
+install.packages("delay")
 library(forecast)
 library(xts) 
 library(ggplot2)
@@ -10,6 +11,7 @@ library(ltm)
 library(dplyr)
 library(RPostgreSQL)
 library(sqldf)
+library(delay)
 
 
 # library(DBI)
@@ -24,36 +26,42 @@ library(sqldf)
 # )
 
 train <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/train.csv")
-stores <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/stores.csv")
-features <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/features.csv")
-
-train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
-features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
+# stores <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/stores.csv")
+# features <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/features.csv")
+View(train)
+# train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
+# features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
 
 #plot(finaldata$Date,finaldata$Weekly_Sales) # use to show the equal distribution of sales vs date/time
 
 
-View(cor(finaldata[c(-2,-13)]))
-
-
-startEntry= c(2010,5)
-finaldata_ts <- ts(finaldata$Weekly_Sales, frequency=52, 
-                   start=startEntry)
-
-plot(finaldata_ts)
-
-tsDecomp<-decompose(finaldata_ts, type="multiplicative")
-plot(tsDecomp)
+# View(cor(finaldata[c(-2,-13)]))
+# 
+# 
+# startEntry= c(2010,5)
+# finaldata_ts <- ts(finaldata$Weekly_Sales, frequency=52, 
+#                    start=startEntry)
+# 
+# plot(finaldata_ts)
+# 
+# tsDecomp<-decompose(finaldata_ts, type="multiplicative")
+# plot(tsDecomp)
 
 aggStore<-sqldf("select Store,Date,avg(Weekly_Sales) as Avg_Weekly_Sales,sum(Weekly_Sales) as Net_Weekly_Sales from train group by Store,Date ")
 aggStore$Date<-as.Date(aggStore$Date)
+
+write.csv(aggStore, file = "aggStore.csv")
 View(aggStore)
 
 aggDate<-sqldf("select Date,avg(Weekly_Sales) as Avg_Weekly_Sales,sum(Weekly_Sales) as Net_Weekly_Sales  from train group by Date ")
 aggDate$Date<-as.Date(aggDate$Date)
 View(aggDate)
 
+#write.csv(aggDate, file = "aggDate.csv")
+
 StoreDetails<-split(aggStore,aggStore$Store)
+
+View(StoreDetails[[1]])
 
 #list2env(StoreDetails, envir= .GlobalEnv) separates the list into 45 different tables, not needed right now may be!
 
@@ -76,6 +84,10 @@ StoreDetails<-split(aggStore,aggStore$Store)
         
         demandTS<-ts(temp$Avg_Weekly_Sales,freq=dataFreq, start =  startEntry )
         plot(demandTS,main = "Average Sales faced by Walmart Store",xlab="Week",ylab="Sales")  #plot time series
+        prompt=cat("Data displayed for Store",i,"\n")
+        
+       
+        Sys.sleep(1)
         
         demandTrain <- window(demandTS,start=trainSetStart,end=trainSetEnd) #extract training set
         demandTest <- window(demandTS,start=testSetStart,end=testSetEnd) #extract test set
@@ -133,6 +145,93 @@ StoreDetails<-split(aggStore,aggStore$Store)
               View(error_Meas)
      
   
+   # readinteger <- function()
+   # { 
+   #   n <- readline(prompt=cat("Data displayed for Store",i))
+   #   return(as.integer(n))
+   # }
+   # 
+   # print(readinteger())
+}
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  temp<-StoreDetails[[1]]
+  
+  
+  
+  
+  demandTS<-ts(temp$Avg_Weekly_Sales,freq=dataFreq, start =  startEntry )
+  plot(demandTS,main = "Average Sales faced by Walmart Store",xlab="Week",ylab="Sales")  #plot time series
+  
+  demandTrain <- window(demandTS,start=trainSetStart,end=trainSetEnd) #extract training set
+  demandTest <- window(demandTS,start=testSetStart,end=testSetEnd) #extract test set
+  
+  # ###########Forecast#########
+  numForcPeriods=36 
+  #number of periods to forecast in the future (Note: If you are computing errors with respect to testing data then this value 
+  #                     #should be equal to the duration of the testing data)
+  
+  ArimaForcModel <- auto.arima(demandTrain) #,order=c(0,0,3)) #Train Holt-Winters forecasting model. Can be additive or multiplicative
+  accuracy(ArimaForcModel)
+  ArimaForecast <- forecast(ArimaForcModel, h=numForcPeriods) #Foreacst using Holt-Winters model trained in previous step
+  
+  plot(ArimaForecast, main="Plot of training demand,
+       testing demand, and forecast with 80% and 95%
+       prediction intervals",xlab="Week",
+       ylab="Sales") #plot the training demand, and forecast with prediction intervals
+  lines(demandTest,col=2) #add the testing demand line to plot
+  legend("topleft", lty=1, col=c(1,4,2),
+         legend=c("Training Sales","Forecast","Testing Sales")) #create plot legend
+  
+  
+  ###########Analyze forecasting error#########
+  error = HWForecast$mean - demandTest #difference between forecast and actual demand
+  AD=abs(error) #absolute value of error
+  
+  #Create empty vectors to store errors
+  MSE <- matrix(, nrow = numForcPeriods, ncol = 1)
+  MAD <- matrix(, nrow = numForcPeriods, ncol = 1)
+  MAPE <- matrix(, nrow = numForcPeriods, ncol = 1)
+  bias <- matrix(, nrow = numForcPeriods, ncol = 1)
+  TS <- matrix(, nrow = numForcPeriods, ncol = 1)
+  #Label columns of matrices using name of error
+  colnames(MSE) <- "MSE"
+  colnames(MAD) <- "MAD"
+  colnames(MAPE) <- "MAPE"
+  colnames(bias) <- "bias"
+  colnames(TS) <- "TS"
+  
+  # #compute errors
+  for(t in 1:numForcPeriods){
+    MSE[t] <- mean(error[1:t]*error[1:t])
+    MAD[t] <- mean(AD[1:t])
+    MAPE[t] <- mean(100*abs(error[1:t]/demandTest[1:t]))
+    bias[t] <- sum(error[1:t])
+    TS[t]= bias[t]/MAD[t]
+  }
+  
+  #combined vectors into a dataframe, also appending year and quarter information in the first two columns
+  error_Meas <- data.frame(floor(time(error)),cycle(error),demandTest,HWForecast$mean,error,AD,MSE,MAD,MAPE,bias,TS)
+  colnames(error_Meas)[1] <- "Year"
+  colnames(error_Meas)[2] <- "Week"
+  colnames(error_Meas)[3] <- "Actual Sales"
+  colnames(error_Meas)[4] <- "Forecast"
+  
+  
+  View(error_Meas)
+  
+  
   readinteger <- function()
   { 
     n <- readline(prompt=cat("Data displayed for Store",i))
@@ -140,4 +239,7 @@ StoreDetails<-split(aggStore,aggStore$Store)
   }
   
   print(readinteger())
-}
+  }
+
+  
+  
