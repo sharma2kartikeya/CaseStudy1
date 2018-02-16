@@ -29,22 +29,22 @@ train <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/I
 stores <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/stores.csv")
  features <- read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/IDS 552 SCM/Case Study/features.csv")
 View(train)
- train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
- features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
-
-plot(finaldata$Date,finaldata$Weekly_Sales) # use to show the equal distribution of sales vs date/time
-
-
-View(cor(finaldata[c(-2,-13)]))
-
- startEntry= c(2010,5)
- finaldata_ts <- ts(finaldata$Weekly_Sales, frequency=52, 
-                    start=startEntry)
- 
- plot(finaldata_ts)
- 
- tsDecomp<-decompose(finaldata_ts, type="multiplicative")
- plot(tsDecomp)
+#  train$IsHoliday<-as.integer(as.logical(train$IsHoliday))
+#  features$IsHoliday<-as.integer(as.logical(features$IsHoliday))
+# 
+# plot(finaldata$Date,finaldata$Weekly_Sales) # use to show the equal distribution of sales vs date/time
+# 
+# 
+# View(cor(finaldata[c(-2,-13)]))
+# 
+#  startEntry= c(2010,5)
+#  finaldata_ts <- ts(finaldata$Weekly_Sales, frequency=52, 
+#                     start=startEntry)
+#  
+#  plot(finaldata_ts)
+#  
+#  tsDecomp<-decompose(finaldata_ts, type="multiplicative")
+#  plot(tsDecomp)
 
 aggStore<-sqldf("select Store,Date,avg(Weekly_Sales) as Avg_Weekly_Sales from train group by Store,Date ")
 aggStore$Date<-as.Date(aggStore$Date)
@@ -63,7 +63,7 @@ aggDate<-read.csv("/Users/kartikeyasharma/iCloud Drive (Archive)/Desktop/Sem 2/I
 
 StoreDetails<-split(aggStore,aggStore$Store)
 
-
+View(StoreDetails)
 
 #list2env(StoreDetails, envir= .GlobalEnv) separates the list into 45 different tables, not needed right now may be!
 
@@ -154,12 +154,12 @@ temp<-aggDate
   trainSetStart= c(2010,5)
   trainSetEnd=  c(2012,7) 
   testSetStart= c(2012,8)
-  testSetEnd= c(2012,42)
+  testSetEnd= c(2012,50)
   
   for (i in 1:45)
     
   {
-        temp<-StoreDetails[[i]]
+        temp<-StoreDetails[[36]]
   
   
         
@@ -169,7 +169,7 @@ temp<-aggDate
         prompt=cat("Data displayed for Store",i,"\n")
         
        
-        #Sys.sleep(1)
+        Sys.sleep(1)
         
         demandTrain <- window(demandTS,start=trainSetStart,end=trainSetEnd) #extract training set
         demandTest <- window(demandTS,start=testSetStart,end=testSetEnd) #extract test set
@@ -229,13 +229,13 @@ temp<-aggDate
               Sys.sleep(2)
               
               Cumul_MAPE_HW[,i]<-error_Meas$MAPE
-              Cumul_bias_HW[,i]<-error_Meas$bias
-              Cumul_TS_HW[,i]<-error_Meas$TS
-              View(error_Meas)
+              # Cumul_bias_HW[,i]<-error_Meas$bias
+              # Cumul_TS_HW[,i]<-error_Meas$TS
+              # View(error_Meas)
               
               
               prompt=cat("Data displayed for Store",i,"\n")
-              #Sys.sleep(2)
+              Sys.sleep(2)
   }  
   
   View(Cumul_MAPE_HW)
